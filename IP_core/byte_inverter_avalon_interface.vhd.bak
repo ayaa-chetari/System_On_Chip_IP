@@ -1,0 +1,76 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity byte_inverter_avalon_interface is
+    port(
+        -- côté Avalon-MM
+        clock      : in  std_logic;
+        resetn     : in  std_logic;
+        read       : in  std_logic;
+        write      : in  std_logic;
+        address    : in  std_logic_vector(1 downto 0);
+        writedata  : in  std_logic_vector(31 downto 0);
+        readdata   : out std_logic_vector(31 downto 0);
+        byteenable : in  std_logic_vector(3 downto 0)
+    );
+end entity;
+
+architecture Structure of byte_inverter_avalon_interface is
+
+    -- registres internes
+    signal reg_input  : std_logic_vector(31 downto 0);
+    signal reg_mode   : std_logic_vector(31 downto 0);
+    signal reg_output : std_logic_vector(31 downto 0);
+
+    COMPONENT byte_inverter
+        PORT (
+            input  : in  std_logic_vector(31 downto 0);
+            output : out std_logic_vector(31 downto 0);
+            mode   : in  std_logic
+        );
+    END COMPONENT;
+
+begin
+
+    -- Process 1 : écriture (reg_input ou reg_mode selon address)
+    process(clock, resetn)
+    begin
+        if resetn = '0' then
+            reg_input <= (others => '0');
+            reg_mode  <= (others => '0');
+        elsif rising_edge(clock) then
+            if write = '1' then
+                case address is
+                    when "00"   => reg_input <= writedata;
+                    when "01"   => reg_mode <= writedata;
+                    when others => null;
+                end case;
+            end if;
+        end if;
+    end process;
+
+    -- Process 2 : lecture (reg_output selon address)
+    process(clock, resetn)
+    begin
+        if resetn = '0' then
+            reg_output <= (others => '0');
+        elsif rising_edge(clock) then
+            if read = '1' and address = "10" then
+                reg_output <= readdata;
+            else
+                reg_output <= (others => '0');
+            end if;
+        end if;
+    end process;
+
+    readdata <= reg_output;
+
+    -- Instanciation du module combinatoire d'inversion
+    inverter_inst : byte_inverter
+        port map(
+            input  => reg_input,
+            output => readdata,
+            mode   => reg_mode(0)
+        );
+
+end Structure;
